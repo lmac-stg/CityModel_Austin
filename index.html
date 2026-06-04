@@ -19,8 +19,9 @@
     const map = new maplibregl.Map({
         container: 'map',
         style: 'https://tiles.openfreemap.org/styles/bright',
-        center: [-88.13734351262877, 35.137451890638886],
-        zoom: 4
+        center: [-97.71734351262877, 30.317451890638886],
+        zoom: 10.5
+
     });
 
     map.on('load', () => {
@@ -36,7 +37,7 @@
         map.addSource('urban-areas', {
             'type': 'geojson',
             'data':
-                'https://d2ad6b4ur7yvpq.cloudfront.net/naturalearth-3.3.0/ne_50m_urban_areas.geojson'
+                'Assets/Zones.geojson'
         });
         map.addLayer(
             {
@@ -45,8 +46,26 @@
                 'source': 'urban-areas',
                 'layout': {},
                 'paint': {
-                    'fill-color': '#f08',
-                    'fill-opacity': 0.4
+                    'fill-color': [
+                        'match',
+                        ['get', 'NAME'],
+                        'Zone1', '#FF6B6B',
+                        'Zone2', '#4ECDC4',
+                        'Zone3', '#45B7D1',
+                        'Zone4', '#FFA07A',
+                        'Zone5', '#98D8C8',
+                        'Zone6', '#F7DC6F',
+                        'Zone7', '#BB8FCE',
+                        'Zone8', '#85C1E2',
+                        'Zone9', '#F8B88B',
+                        'Zone10', '#52C41A',
+                        'Zone11', '#1890FF',
+                        'Zone12', '#FF85C0',
+                        'Zone13', '#A0D995',
+                        'Zone14', '#FFB347',
+                        '#888888'
+                    ],
+                    'fill-opacity': 0.6
                 }
                 // This is the important part of this example: the addLayer
                 // method takes 2 arguments: the layer as an object, and a string
@@ -58,6 +77,73 @@
             },
             firstSymbolId
         );
+
+        // Fetch and process GeoJSON to extract centroids for labels
+        fetch('Assets/Zones.geojson')
+            .then(response => response.json())
+            .then(data => {
+                // Function to compute polygon centroid
+                function getPolygonCentroid(coords) {
+                    let area = 0, x = 0, y = 0;
+                    const ring = coords[0];
+                    for (let i = 0; i < ring.length - 1; i++) {
+                        const p0 = ring[i], p1 = ring[i + 1];
+                        const a = p0[0] * p1[1] - p1[0] * p0[1];
+                        area += a;
+                        x += (p0[0] + p1[0]) * a;
+                        y += (p0[1] + p1[1]) * a;
+                    }
+                    area /= 2;
+                    return [x / (6 * area), y / (6 * area)];
+                }
+
+                // Create a point feature collection with centroids and labels
+                const labelFeatures = data.features.map(feature => {
+                    const centroid = getPolygonCentroid(feature.geometry.coordinates);
+                    return {
+                        type: 'Feature',
+                        properties: feature.properties,
+                        geometry: {
+                            type: 'Point',
+                            coordinates: centroid
+                        }
+                    };
+                });
+
+                const labelSource = {
+                    type: 'FeatureCollection',
+                    features: labelFeatures
+                };
+
+                // Add the label source with point geometries
+                map.addSource('urban-areas-label-points', {
+                    'type': 'geojson',
+                    'data': labelSource
+                });
+
+                // Add a symbol layer for labels on the centroid points
+                map.addLayer({
+                    id: 'urban-areas-labels',
+                    type: 'symbol',
+                    source: 'urban-areas-label-points',
+                    layout: {
+                        'text-field': [
+                            'coalesce',
+                            ['get', 'name'],
+                            ['get', 'NAME']
+                        ],
+                        'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+                        'text-size': 12,
+                        'text-anchor': 'center',
+                        'text-allow-overlap': false
+                    },
+                    paint: {
+                        'text-color': '#000000',
+                        'text-halo-color': '#ffffff',
+                        'text-halo-width': 2
+                    }
+                });
+            });
     });
 </script>
 </body>
